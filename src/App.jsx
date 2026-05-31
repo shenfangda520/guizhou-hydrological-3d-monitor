@@ -73,8 +73,8 @@ function App() {
     if (!host) return undefined;
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x8fb0bf, 0.0034);
-    scene.background = new THREE.Color(0x506f86);
+    scene.fog = new THREE.FogExp2(0x89a7b2, 0.0028);
+    scene.background = new THREE.Color(0x54788f);
 
     const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 4000);
     camera.position.set(120, 95, 150);
@@ -86,7 +86,7 @@ function App() {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 0.95;
+    renderer.toneMappingExposure = 1.02;
     host.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -97,8 +97,8 @@ function App() {
     controls.maxDistance = 600;
     controls.target.set(0, 6, 0);
 
-    const sun = new THREE.DirectionalLight(0xfff2d8, 1.5);
-    sun.position.set(-160, 220, 120);
+    const sun = new THREE.DirectionalLight(0xfff0d2, 1.15);
+    sun.position.set(-190, 190, 95);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.camera.near = 10;
@@ -108,15 +108,15 @@ function App() {
     sun.shadow.camera.top = 260;
     sun.shadow.camera.bottom = -260;
     scene.add(sun);
-    scene.add(new THREE.HemisphereLight(0xbfe0ff, 0x4a3b2e, 0.7));
-    scene.add(new THREE.AmbientLight(0x405060, 0.4));
+    scene.add(new THREE.HemisphereLight(0xc6e5ff, 0x3c342b, 0.48));
+    scene.add(new THREE.AmbientLight(0x34414b, 0.28));
 
     const skyGeo = new THREE.SphereGeometry(2000, 32, 16);
     const skyMat = new THREE.ShaderMaterial({
       side: THREE.BackSide,
       uniforms: {
-        uTop: { value: new THREE.Color(0x2a6fb0) },
-        uBot: { value: new THREE.Color(0xcfe6f2) },
+        uTop: { value: new THREE.Color(0x4f86b0) },
+        uBot: { value: new THREE.Color(0xbbd0cf) },
         uSun: { value: sun.position.clone().normalize() },
       },
       vertexShader: 'varying vec3 vDir; void main(){ vDir=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} ',
@@ -156,20 +156,32 @@ function App() {
     terrainGeo.rotateX(-Math.PI / 2);
     const pos = terrainGeo.attributes.position;
     const colors = [];
-    const cLow = new THREE.Color(0x3a5a32);
-    const cRock = new THREE.Color(0x6b6256);
-    const cSnow = new THREE.Color(0xe8eef2);
-    const cSand = new THREE.Color(0x8a7a55);
+    const cWetBank = new THREE.Color(0x5a6650);
+    const cGrass = new THREE.Color(0x3f6338);
+    const cMoss = new THREE.Color(0x5f7a44);
+    const cAlpine = new THREE.Color(0x4f6142);
+    const cRock = new THREE.Color(0x5e6159);
+    const cDarkRock = new THREE.Color(0x3f423e);
+    const cSnow = new THREE.Color(0xd8ddd8);
+    const cGravel = new THREE.Color(0x78705d);
     for (let i = 0; i < pos.count; i += 1) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
       const h = ridge(x, z);
       pos.setY(i, h);
+      const meander = Math.sin(z * 0.012) * 46 + Math.sin(z * 0.031) * 18;
+      const riverDist = Math.abs(x - meander);
+      const slope =
+        (Math.abs(ridge(x + 3, z) - ridge(x - 3, z)) + Math.abs(ridge(x, z + 3) - ridge(x, z - 3))) / 26;
+      const moisture = THREE.MathUtils.clamp(1 - riverDist / 120, 0, 1);
+      const fineNoise = simplex.noise2D(x * 0.055 + 4.7, z * 0.055 - 8.1) * 0.5 + 0.5;
       const color = new THREE.Color();
-      if (h < 2) color.copy(cSand);
-      else if (h < 28) color.copy(cLow).lerp(cSand, Math.max(0, (8 - h) / 8 > 0 ? (8 - h) / 8 : 0));
-      else if (h < 70) color.copy(cLow).lerp(cRock, (h - 28) / 42);
-      else color.copy(cRock).lerp(cSnow, Math.min(1, (h - 70) / 35));
+      if (riverDist < 78) color.copy(cWetBank).lerp(cGravel, THREE.MathUtils.clamp((riverDist - 35) / 43, 0, 1));
+      else if (h < 28) color.copy(cGrass).lerp(cMoss, moisture * 0.65);
+      else if (h < 88) color.copy(cAlpine).lerp(cRock, THREE.MathUtils.clamp((h - 34) / 78 + slope * 0.28, 0, 0.82));
+      else color.copy(cRock).lerp(cSnow, Math.min(1, (h - 94) / 34));
+      color.lerp(cDarkRock, THREE.MathUtils.clamp(slope - 0.42, 0, 0.55));
+      color.multiplyScalar(0.86 + fineNoise * 0.22);
       colors.push(color.r, color.g, color.b);
     }
     terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
@@ -181,27 +193,164 @@ function App() {
     terrain.receiveShadow = true;
     scene.add(terrain);
 
+    function seededRand(seed) {
+      const value = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+      return value - Math.floor(value);
+    }
+
+    function riverCenter(z) {
+      return Math.sin(z * 0.012) * 46 + Math.sin(z * 0.031) * 18;
+    }
+
+    function localSlope(x, z) {
+      return (
+        Math.abs(ridge(x + 3, z) - ridge(x - 3, z)) + Math.abs(ridge(x, z + 3) - ridge(x, z - 3))
+      ) / 26;
+    }
+
+    const treeCount = 180;
+    const trunkMesh = new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(0.42, 0.58, 6, 7),
+      new THREE.MeshStandardMaterial({ color: 0x4a3324, roughness: 0.9 }),
+      treeCount,
+    );
+    const crownMesh = new THREE.InstancedMesh(
+      new THREE.ConeGeometry(3.4, 10, 8),
+      new THREE.MeshStandardMaterial({ color: 0x214a31, roughness: 0.88 }),
+      treeCount,
+    );
+    const dummy = new THREE.Object3D();
+    let placedTrees = 0;
+    for (let i = 0; placedTrees < treeCount && i < treeCount * 7; i += 1) {
+      const x = seededRand(i + 3) * size - size / 2;
+      const z = seededRand(i + 47) * size - size / 2;
+      const h = ridge(x, z);
+      const riverDist = Math.abs(x - riverCenter(z));
+      const slope = localSlope(x, z);
+      if (riverDist < 96 || h < 4 || h > 72 || slope > 0.78) continue;
+      const scale = 0.75 + Math.abs(seededRand(i + 91)) * 0.75;
+      const lean = (seededRand(i + 123) - 0.5) * 0.13;
+      dummy.position.set(x, h + 3 * scale, z);
+      dummy.rotation.set(lean, seededRand(i + 142) * Math.PI * 2, -lean * 0.6);
+      dummy.scale.setScalar(scale);
+      dummy.updateMatrix();
+      trunkMesh.setMatrixAt(placedTrees, dummy.matrix);
+
+      dummy.position.set(x, h + 8.7 * scale, z);
+      dummy.rotation.set(lean * 0.8, seededRand(i + 177) * Math.PI * 2, -lean * 0.5);
+      dummy.scale.setScalar(scale);
+      dummy.updateMatrix();
+      crownMesh.setMatrixAt(placedTrees, dummy.matrix);
+      placedTrees += 1;
+    }
+    trunkMesh.castShadow = true;
+    crownMesh.castShadow = true;
+    trunkMesh.count = placedTrees;
+    crownMesh.count = placedTrees;
+    scene.add(trunkMesh, crownMesh);
+
+    const rockCount = 95;
+    const rockMesh = new THREE.InstancedMesh(
+      new THREE.DodecahedronGeometry(1, 0),
+      new THREE.MeshStandardMaterial({ color: 0x5e5b52, roughness: 0.97 }),
+      rockCount,
+    );
+    let placedRocks = 0;
+    for (let i = 0; placedRocks < rockCount && i < rockCount * 6; i += 1) {
+      const z = seededRand(i + 301) * size - size / 2;
+      const side = seededRand(i + 302) > 0.5 ? 1 : -1;
+      const x = riverCenter(z) + side * (78 + Math.abs(seededRand(i + 303)) * 48);
+      const h = ridge(x, z);
+      if (h < -10 || h > 88) continue;
+      const scale = 0.8 + Math.abs(seededRand(i + 304)) * 3.2;
+      dummy.position.set(x, h + scale * 0.45, z);
+      dummy.rotation.set(
+        seededRand(i + 305) * Math.PI,
+        seededRand(i + 306) * Math.PI,
+        seededRand(i + 307) * Math.PI,
+      );
+      dummy.scale.set(scale * 1.25, scale * 0.62, scale * (0.8 + Math.abs(seededRand(i + 308)) * 0.8));
+      dummy.updateMatrix();
+      rockMesh.setMatrixAt(placedRocks, dummy.matrix);
+      placedRocks += 1;
+    }
+    rockMesh.castShadow = true;
+    rockMesh.receiveShadow = true;
+    rockMesh.count = placedRocks;
+    scene.add(rockMesh);
+
     const chanHalf = 70.0;
     const waterUniforms = {
       uTime: { value: 0 },
       uFlow: { value: Math.max(0.15, state.flow) },
       uWave: { value: state.wave },
       uLevel: { value: state.level },
-      uShallow: { value: new THREE.Color(0x4fc6d8) },
-      uDeep: { value: new THREE.Color(0x07304b) },
-      uSky: { value: new THREE.Color(0x9fc4dd) },
-      uSkyTop: { value: new THREE.Color(0x3a7fc0) },
+      uShallow: { value: new THREE.Color(0x55a9aa) },
+      uDeep: { value: new THREE.Color(0x082c3f) },
+      uSky: { value: new THREE.Color(0x8fb0bf) },
+      uSkyTop: { value: new THREE.Color(0x4f86b0) },
       uSun: { value: sun.position.clone().normalize() },
       uChanHalf: { value: chanHalf },
     };
-    const waterGeo = new THREE.PlaneGeometry(170, size, 220, 340);
-    waterGeo.rotateX(-Math.PI / 2);
+    function riverBaseHeight(z) {
+      const samples = [-12, -6, 0, 6, 12];
+      let total = 0;
+      samples.forEach((offset, index) => {
+        const sampleZ = z + offset;
+        const weight = index === 2 ? 2 : 1;
+        total += ridge(riverCenter(sampleZ), sampleZ) * weight;
+      });
+      return total / 6 - 1.8;
+    }
+
+    function createRiverGeometry() {
+      const xSeg = 72;
+      const zSeg = 360;
+      const halfWidth = 58;
+      const positions = [];
+      const uvs = [];
+      const indices = [];
+
+      for (let zi = 0; zi <= zSeg; zi += 1) {
+        const z = -size / 2 + (zi / zSeg) * size;
+        const width = halfWidth + Math.sin(z * 0.036) * 5 + simplex.noise2D(11.4, z * 0.018) * 4;
+        const baseY = riverBaseHeight(z);
+        for (let xi = 0; xi <= xSeg; xi += 1) {
+          const u = xi / xSeg;
+          const centered = u * 2 - 1;
+          const edge = Math.abs(centered);
+          const localX = centered * width;
+          const bankDip = Math.pow(edge, 2.8) * 0.55;
+          positions.push(localX, baseY - bankDip, z);
+          uvs.push(u, zi / zSeg);
+        }
+      }
+
+      for (let zi = 0; zi < zSeg; zi += 1) {
+        for (let xi = 0; xi < xSeg; xi += 1) {
+          const a = zi * (xSeg + 1) + xi;
+          const b = a + 1;
+          const c = a + (xSeg + 1);
+          const d = c + 1;
+          indices.push(a, c, b, b, c, d);
+        }
+      }
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geometry.setIndex(indices);
+      geometry.computeVertexNormals();
+      return geometry;
+    }
+
+    const waterGeo = createRiverGeometry();
     const waterMat = new THREE.ShaderMaterial({
       transparent: true,
       uniforms: waterUniforms,
       vertexShader: `
         uniform float uTime,uFlow,uWave,uLevel;
-        varying float vCrest; varying vec3 vWorld; varying vec3 vNormal; varying float vBank;
+        varying float vCrest; varying vec3 vWorld; varying vec3 vNormal; varying float vBank; varying float vEdge;
         float meander(float z){ return sin(z*0.012)*46.0 + sin(z*0.031)*18.0; }
         vec3 gerstner(vec2 d, float steep, float wl, float speed, vec2 xz, float t, inout vec3 nrm){
           float k = 6.2831853/wl;
@@ -217,20 +366,22 @@ function App() {
         void main(){
           vec3 p = position;
           float localX = p.x;
+          float edge = clamp(abs(localX)/64.0, 0.0, 1.0);
           p.x += meander(p.z);
           vec2 xz = vec2(p.x, p.z);
           float t = uTime;
           vec3 nrm = vec3(0.0,1.0,0.0);
           vec3 disp = vec3(0.0);
-          float amp = uWave;
-          disp += gerstner(vec2(0.1, 1.0), 0.55*amp, 36.0, 1.2*uFlow, xz, t, nrm);
-          disp += gerstner(vec2(0.6, 1.0), 0.32*amp, 18.0, 1.6*uFlow, xz, t, nrm);
-          disp += gerstner(vec2(-0.7,1.0), 0.22*amp, 11.0, 2.0*uFlow, xz, t, nrm);
-          disp += gerstner(vec2(1.0, 0.2), 0.14*amp,  6.5, 2.6*uFlow, xz, t, nrm);
+          float amp = uWave * 0.34 * smoothstep(1.0, 0.28, edge);
+          disp += gerstner(vec2(0.08, 1.0), 0.24*amp, 42.0, 1.05*uFlow, xz, t, nrm);
+          disp += gerstner(vec2(0.42, 1.0), 0.16*amp, 20.0, 1.45*uFlow, xz, t, nrm);
+          disp += gerstner(vec2(-0.48,1.0), 0.10*amp, 12.0, 1.9*uFlow, xz, t, nrm);
+          disp += gerstner(vec2(0.9, 0.18), 0.045*amp, 7.5, 2.2*uFlow, xz, t, nrm);
           p += disp;
-          p.y += uLevel;
+          p.y += uLevel - smoothstep(0.76, 1.0, edge) * 1.9;
           vCrest = disp.y;
-          vBank = clamp(abs(localX)/85.0, 0.0, 1.0);
+          vBank = edge;
+          vEdge = edge;
           vec4 wp = modelMatrix*vec4(p,1.0);
           vWorld = wp.xyz;
           vNormal = normalize(nrm);
@@ -238,7 +389,7 @@ function App() {
         }`,
       fragmentShader: `
         uniform vec3 uShallow,uDeep,uSky,uSkyTop,uSun; uniform float uTime,uFlow;
-        varying float vCrest; varying vec3 vWorld; varying vec3 vNormal; varying float vBank;
+        varying float vCrest; varying vec3 vWorld; varying vec3 vNormal; varying float vBank; varying float vEdge;
         vec3 skyColor(vec3 r){
           float h = clamp(r.y*0.5+0.5, 0.0, 1.0);
           vec3 c = mix(uSky, uSkyTop, pow(h,0.7));
@@ -253,15 +404,22 @@ function App() {
           float fres = 0.02 + 0.98*pow(1.0 - max(dot(V,N),0.0), 5.0);
           vec3 body = mix(uDeep, uShallow, clamp(vCrest*0.6+0.5,0.0,1.0));
           vec3 refl = skyColor(R);
-          vec3 col = mix(body, refl, fres*0.85);
+          vec3 col = mix(body, refl, fres*0.42);
           vec3 H = normalize(uSun + V);
-          col += vec3(1.0)*pow(max(dot(N,H),0.0), 200.0)*1.4;
-          float crestFoam = smoothstep(0.45, 0.9, vCrest);
-          float stripe = sin(vWorld.z*0.6 - uTime*5.0*uFlow + vWorld.x*0.2)*0.5+0.5;
-          float bankFoam = smoothstep(0.72, 1.0, vBank) * (0.5+0.5*stripe);
-          float foam = clamp(crestFoam*0.6 + bankFoam, 0.0, 1.0);
-          col = mix(col, vec3(0.95,0.98,1.0), foam);
-          float alpha = mix(0.86, 1.0, foam);
+          col += vec3(0.9,0.96,1.0)*pow(max(dot(N,H),0.0), 140.0)*0.34;
+          float crestFoam = smoothstep(0.38, 0.72, vCrest);
+          float stripe = sin(vWorld.z*0.42 - uTime*3.6*uFlow + vWorld.x*0.16)*0.5+0.5;
+          float fine = sin(vWorld.z*1.25 - uTime*8.0*uFlow + vWorld.x*0.55)*0.5+0.5;
+          float currentLine = sin(vWorld.x*0.12 + sin(vWorld.z*0.035)*2.6 - uTime*uFlow*1.8)*0.5+0.5;
+          currentLine *= sin(vWorld.x*0.34 + vWorld.z*0.09 - uTime*uFlow*4.2)*0.5+0.5;
+          float midChannel = 1.0 - smoothstep(0.35, 0.9, vBank);
+          float streakFoam = smoothstep(0.84, 0.98, currentLine) * midChannel * 0.18;
+          float bankFoam = smoothstep(0.78, 0.96, vBank) * (0.18+0.34*stripe*fine);
+          float foam = clamp(crestFoam*0.12 + bankFoam + streakFoam, 0.0, 0.44);
+          col = mix(col, vec3(0.82,0.9,0.9), foam);
+          col += vec3(0.03,0.07,0.07) * streakFoam;
+          col = mix(col, uDeep, smoothstep(0.94, 1.0, vEdge) * 0.55);
+          float alpha = mix(0.82, 0.95, foam);
           alpha = mix(alpha, 1.0, fres*0.3);
           gl_FragColor = vec4(col, alpha);
         }`,
@@ -291,15 +449,15 @@ function App() {
     const mistN = 120;
     const mistPos = new Float32Array(mistN * 3);
     for (let i = 0; i < mistN; i += 1) {
-      mistPos[i * 3] = fallMX + (Math.random() - 0.5) * 38;
-      mistPos[i * 3 + 1] = ridge(fallMX, fallZ) + Math.random() * 14;
-      mistPos[i * 3 + 2] = fallZ + (Math.random() - 0.5) * 16;
+      mistPos[i * 3] = fallMX + (Math.random() - 0.5) * 28;
+      mistPos[i * 3 + 1] = ridge(fallMX, fallZ) + Math.random() * 11;
+      mistPos[i * 3 + 2] = fallZ + (Math.random() - 0.5) * 12;
     }
     const mistGeo = new THREE.BufferGeometry();
     mistGeo.setAttribute('position', new THREE.BufferAttribute(mistPos, 3));
     const mist = new THREE.Points(
       mistGeo,
-      new THREE.PointsMaterial({ color: 0xffffff, size: 3.5, transparent: true, opacity: 0.28, depthWrite: false }),
+      new THREE.PointsMaterial({ color: 0xdfeff2, size: 2.4, transparent: true, opacity: 0.18, depthWrite: false }),
     );
     scene.add(mist);
 
