@@ -31,14 +31,14 @@ function App() {
   const [activeView, setActiveView] = useState('drone');
   const [loading, setLoading] = useState(true);
   const [tip, setTip] = useState(null);
-  const [params, setParams] = useState({ levelRaw: 42, flowRaw: 35, waveRaw: 45 });
+  const [params, setParams] = useState({ levelRaw: 56, flowRaw: 35, waveRaw: 45 });
   const [devices, setDevices] = useState(() =>
     initialDeviceDefs.map((device) => ({ ...device, on: true })),
   );
 
   const state = useMemo(
     () => ({
-      level: (params.levelRaw / 100) * 8,
+      level: 1.2 + (params.levelRaw / 100) * 10.5,
       flow: (params.flowRaw / 100) * 3.5,
       wave: (params.waveRaw / 100) * 2,
     }),
@@ -300,7 +300,7 @@ function App() {
         const weight = index === 2 ? 2 : 1;
         total += ridge(riverCenter(sampleZ), sampleZ) * weight;
       });
-      return total / 6 - 1.8;
+      return total / 6 - 0.7;
     }
 
     function createRiverGeometry() {
