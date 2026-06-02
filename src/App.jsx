@@ -472,6 +472,33 @@ function App() {
     );
     scene.add(mist);
 
+    const rainCount = 720;
+    const rainPositions = new Float32Array(rainCount * 2 * 3);
+    const rainGeo = new THREE.BufferGeometry();
+    function resetRainDrop(index, high = false) {
+      const x = seededRand(index * 3 + 601) * size - size / 2;
+      const z = seededRand(index * 3 + 602) * size - size / 2;
+      const y = (high ? 120 : 30) + seededRand(index * 3 + 603) * 170;
+      const offset = index * 6;
+      rainPositions[offset] = x;
+      rainPositions[offset + 1] = y;
+      rainPositions[offset + 2] = z;
+      rainPositions[offset + 3] = x - 2.2;
+      rainPositions[offset + 4] = y - 14;
+      rainPositions[offset + 5] = z + 1.4;
+    }
+    for (let i = 0; i < rainCount; i += 1) resetRainDrop(i, true);
+    rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+    const rainMaterial = new THREE.LineBasicMaterial({
+      color: 0xbfdbe6,
+      transparent: true,
+      opacity: THREE.MathUtils.clamp(state.rain / 90, 0.04, 0.62),
+      depthWrite: false,
+    });
+    const rain = new THREE.LineSegments(rainGeo, rainMaterial);
+    rain.visible = state.rain > 1;
+    scene.add(rain);
+
     function makeStation(def) {
       const group = new THREE.Group();
       const pole = new THREE.Mesh(
@@ -601,6 +628,23 @@ function App() {
       }
       mistPosition.needsUpdate = true;
 
+      if (rain.visible) {
+        const rainSpeed = 58 + (simRef.current?.state.rain ?? 0) * 1.35;
+        const rainAttr = rainGeo.attributes.position;
+        for (let i = 0; i < rainCount; i += 1) {
+          const offset = i * 2;
+          const topY = rainAttr.getY(offset) - dt * rainSpeed;
+          const bottomY = rainAttr.getY(offset + 1) - dt * rainSpeed;
+          if (bottomY < -8) {
+            resetRainDrop(i, true);
+          } else {
+            rainAttr.setY(offset, topY);
+            rainAttr.setY(offset + 1, bottomY);
+          }
+        }
+        rainAttr.needsUpdate = true;
+      }
+
       stationObjects.forEach((device) => {
         if (device.userData.on) {
           device.userData.led.material.emissiveIntensity = 1.5 + Math.sin(t * 3) * 0.7;
@@ -620,7 +664,7 @@ function App() {
       renderer.render(scene, camera);
     }
 
-    simRef.current = { waterUniforms, devices: stationObjects, state, goView };
+    simRef.current = { waterUniforms, devices: stationObjects, state, goView, rain, rainMaterial };
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('resize', onResize);
     goView('drone');
@@ -643,6 +687,8 @@ function App() {
 
   const onlineCount = devices.filter((device) => device.on).length;
   const waveText = params.waveRaw < 33 ? '低' : params.waveRaw < 66 ? '中' : '高';
+  const rainText = state.rain < 8 ? '无雨' : state.rain < 28 ? '小雨' : state.rain < 55 ? '中雨' : '强降雨';
+  const riskInfo = getRiskInfo(state);
 
   function updateParam(key, value) {
     setParams((current) => ({ ...current, [key]: Number(value) }));
@@ -666,6 +712,12 @@ function App() {
         </span>
         <span className="stat">
           流速 <b>{state.flow.toFixed(2)} m/s</b>
+        </span>
+        <span className="stat">
+          雨量 <b>{state.rain.toFixed(1)} mm/h</b>
+        </span>
+        <span className={`stat risk-stat ${riskInfo.tone}`}>
+          风险 <b>{riskInfo.label}</b>
         </span>
         <span className="stat">
           在线设备 <b>{onlineCount} / {devices.length}</b>
@@ -728,6 +780,28 @@ function App() {
             onChange={(event) => updateParam('waveRaw', event.target.value)}
           />
         </label>
+
+        <h3 className="device-title">降雨情景</h3>
+        <label className="ctl">
+          <div className="row">
+            <span>降雨强度</span>
+            <b>{rainText}</b>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={params.rainRaw}
+            onChange={(event) => updateParam('rainRaw', event.target.value)}
+          />
+        </label>
+        <div className={`risk-card ${riskInfo.tone}`}>
+          <div>
+            <span>综合风险</span>
+            <b>{riskInfo.label}</b>
+          </div>
+          <p>{riskInfo.note}</p>
+        </div>
 
         <h3 className="device-title">仪器设备</h3>
         <div>

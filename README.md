@@ -8,6 +8,7 @@
 - 动态水流效果：河面沿谷底高度生成，并结合波浪、流向纹理、岸边泡沫和水雾表现山溪流动。
 - 监测设备展示：包含水位监测站、流速传感器、雨量计和视频监控设备。
 - 实时参数控制：支持调节水位高度、流速和浪高。
+- 降雨情景与风险预警：支持调节降雨强度，并根据水位、流速和降雨量生成综合风险等级。
 - 多视角切换：支持无人机巡航、近景细查、远景全景、正俯视和自由操作。
 - React 状态管理：将 Three.js 场景与 React UI 状态结合，便于后续扩展数据面板和监测接口。
 
@@ -84,6 +85,7 @@ A 3D hydrological monitoring visualization project built with React, Vite, and T
 - Dynamic river flow with valley-following water geometry, waves, flow streaks, bank foam, and mist.
 - Monitoring devices including water level stations, flow sensors, rain gauges, and cameras.
 - Real-time controls for water level, flow speed, and wave height.
+- Rainfall scenario and risk warning: adjust rainfall intensity and generate a combined risk level from water level, flow speed, and rainfall.
 - Multiple camera views: drone patrol, close inspection, wide overview, top view, and free navigation.
 - React-driven UI state integrated with a Three.js rendering scene.
 
