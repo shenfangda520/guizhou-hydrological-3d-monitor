@@ -21,8 +21,16 @@ const initialDeviceDefs = [
 function deviceReading(kind, state, elapsedTime = 0) {
   if (kind === 'level') return `${state.level.toFixed(2)} m`;
   if (kind === 'flow') return `${state.flow.toFixed(2)} m/s`;
-  if (kind === 'rain') return `${(12 + Math.sin(elapsedTime * 0.3) * 4).toFixed(1)} mm`;
+  if (kind === 'rain') return `${(state.rain + Math.sin(elapsedTime * 0.3) * 2).toFixed(1)} mm/h`;
   return '1080P · 在线';
+}
+
+function getRiskInfo(state) {
+  const score = state.level * 5.8 + state.flow * 12 + state.rain * 0.62;
+  if (score >= 115) return { label: '红色预警', tone: 'danger', note: '山洪风险高' };
+  if (score >= 88) return { label: '橙色预警', tone: 'warning', note: '需加强巡查' };
+  if (score >= 64) return { label: '黄色关注', tone: 'watch', note: '水位持续观察' };
+  return { label: '运行平稳', tone: 'normal', note: '设备状态正常' };
 }
 
 function App() {
@@ -31,7 +39,7 @@ function App() {
   const [activeView, setActiveView] = useState('drone');
   const [loading, setLoading] = useState(true);
   const [tip, setTip] = useState(null);
-  const [params, setParams] = useState({ levelRaw: 56, flowRaw: 35, waveRaw: 45 });
+  const [params, setParams] = useState({ levelRaw: 56, flowRaw: 35, waveRaw: 45, rainRaw: 24 });
   const [devices, setDevices] = useState(() =>
     initialDeviceDefs.map((device) => ({ ...device, on: true })),
   );
@@ -41,6 +49,7 @@ function App() {
       level: 1.2 + (params.levelRaw / 100) * 10.5,
       flow: (params.flowRaw / 100) * 3.5,
       wave: (params.waveRaw / 100) * 2,
+      rain: (params.rainRaw / 100) * 90,
     }),
     [params],
   );
@@ -51,6 +60,8 @@ function App() {
       simRef.current.waterUniforms.uLevel.value = state.level;
       simRef.current.waterUniforms.uFlow.value = Math.max(0.15, state.flow);
       simRef.current.waterUniforms.uWave.value = state.wave;
+      simRef.current.rainMaterial.opacity = THREE.MathUtils.clamp(state.rain / 90, 0.04, 0.62);
+      simRef.current.rain.visible = state.rain > 1;
     }
   }, [state]);
 
